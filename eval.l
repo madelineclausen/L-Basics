@@ -1,0 +1,145 @@
+(defvar global-alist nil)
+
+(defun my-assoc (v alist)
+    (cond
+        ((null alist) nil)
+        ((equal v (car (car alist))) (car alist))
+        (t (my-assoc v (cdr alist)))
+    )
+)
+
+(defun my-eval (e alist)
+    (cond 
+        ((eq e nil) nil)
+        ((atom e) (my-eval-atom e alist))
+        (t (my-apply (car e) (cdr e) alist))
+    )
+)
+
+(defun my-eval-atom (e alist)
+    (cond
+        ((eq e T) T)
+        ((stringp e) e)
+        ((numberp e) e)
+        ((symbolp e) (cdr (my-assoc e alist)))
+        ((eq e (car (car alist))) (cdar alist))
+        (t nil)
+    )
+)
+
+(defun my-eval-atom-helper (e alist)
+    (cond
+        ((null (cdr (my-assoc e alist))) e)
+        (t (my-eval-atom (cdr (my-assoc e alist)) alist))
+    )
+)
+
+(defun my-apply (fn args alist)
+    (cond 
+        ((atom fn) (my-apply-atom fn args alist))
+        (t (my-apply-lambda fn args alist))
+    )
+)
+
+(defun my-eval-list (l alist)
+    (cond
+        ((null l) nil)
+        ((null (cdr l)) (my-eval (car l) alist))
+        (t (cons (my-eval (car l) alist) (my-eval-list (cdr l) alist)))
+    )
+)
+
+(defun my-apply-lambda (fn args alist)
+    (my-eval-list (cdr fn) (my-bind-formals (car fn) args alist))
+)
+
+(defun my-bind-formals (formals actuals alist)
+    (cond
+        ((null formals) alist)
+        (t (cons (cons (car formals) (my-eval (car actuals) alist)) (my-bind-formals (cdr formals) (cdr actuals) alist)))  
+    )
+)
+
+(defun my-apply-atom (fn args alist)
+  (cond 
+    ((eq fn 'eq) (eq (my-eval (car args) alist) (my-eval (cadr args) alist)))
+    ((eq fn 'car) (car (my-eval (car args) alist)))
+    ((eq fn 'cdr) (cdr (my-eval (car args) alist)))
+    ((eq fn 'cons) (cons (my-eval (car args) alist) (my-eval (cadr args) alist)))
+    ((eq fn 'quote) (car args))
+    ((eq fn 'setq) (my-eval-setq (car args) (cadr args)))
+    ((eq fn 'cond) (my-eval-cond args alist))
+    ((eq fn 'defun) (my-eval-defun args alist))
+    ((eq fn 'eval) (my-eval (my-eval (car args) alist) alist))
+    (t "needs debugged");(my-apply (my-assoc fn alist) args alist))
+  )
+)
+
+
+(defun my-eval-setq (var val)
+  (setq global-alist (cons (cons var (my-eval val global-alist)) global-alist))
+)
+
+(defun my-eval-cond (clauses alist)
+  (cond
+    ((null clauses) nil)
+    ((my-eval (car (car clauses)) alist) (my-eval-list (cdar clauses) alist))
+    (t (my-eval-cond (cdr clauses) alist))
+  )
+)
+
+(defun my-eval-defun (body alist)
+    (setq global-alist (cons body global-alist))
+)
+
+(defun my-top ()
+    (prog ()
+        top
+            (print (my-eval (read) global-alist))
+            (terpri)
+            (go top) 
+    )
+)
+
+
+
+(defun my-error (msg)
+    (princ "Error: ")
+    (princ msg)
+    (terpri)
+    nil
+)
+(defun my-test (exp)
+    (print exp)
+    (print (my-eval exp global-alist))
+    (terpri)
+    (terpri)
+)
+(defun testallhw5 ()
+    (my-test t)
+    (my-test nil)
+    (my-test "hello")
+    (my-test 10)
+    (my-test '(eq t t))
+    (my-test '(eq nil nil))
+    (my-test '(eq t nil))
+    (my-test '(null nil))
+    (my-test '(null t))
+    (my-test '(quote (a b c)))
+    (my-test '(eq 'a 'a))
+    (my-test '(eq '(a b) '(a b)))
+    (my-test '(car '(a b c)))
+    (my-test '(cdr '(a b c)))
+    (my-test '(cons 'foo '(a b c)))
+    (my-test '(setq a '(a b c)))
+    (my-test '(print '(a b c)))
+    (my-test 'a)
+    (my-test '(cond (nil 1)(t 2) (t 3)))
+    (my-test '(cond ((eq t nil) (print "in case 1") 1)((eq t t) (print "in case 2") 2)(t (print "in case 3") 3)))
+    (my-test '(defun rev (L R) (cond ((null L) R) (t (rev (cdr L) (cons (car L) R))))))
+    (my-test '(rev a nil))
+    (my-test '(rev (rev  a nil) nil))
+    (my-test '(defun app (L R)(cond ((null L) R)(t (cons (car L) (app (cdr L) R))))))
+    (my-test '(app (app a a) (app a a)))
+)
+(testallhw5)
